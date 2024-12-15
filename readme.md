@@ -3,6 +3,7 @@
 Python code that allows you to ask questions about your pdf locally with the help of OLLAMA.
 
 ## Prequisites
+* Python 3.11+
 * Local installation of OLLAMA3.2.
 
 ## Get started
