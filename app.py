@@ -16,6 +16,14 @@ messages = []
 USER = "user"
 ASSISTANT = "assistant"
 
+# Global variables for tokenizers, encoders, and index
+context_tokenizer = None
+context_encoder = None
+question_tokenizer = None
+question_encoder = None
+index = None
+paragraphs = None
+
 
 def add_history(content, role):
     messages.append({"role": role, "content": content})
@@ -30,7 +38,6 @@ def chat(message):
 
     Use the context above to answer the given questions. If you do not know any answer, please respond with "I do not know". Do not make up any information.
     """
-
     prompt = prompt.format(message=message)
 
     response = ollama_chat(
@@ -70,7 +77,6 @@ def search_relevant_contexts(
         question_encoder(**question_inputs).pooler_output.detach().numpy()
     )
     D, I = index.search(question_embedding, k)
-
     return D, I
 
 
@@ -82,6 +88,8 @@ def generate_answer_with_ollama(question, relevant_contexts):
 
 
 def initialize_components(pdf_path):
+    global context_tokenizer, context_encoder, question_tokenizer, question_encoder, index, paragraphs
+
     # Extract and split text
     all_text = extract_text_from_pdf(pdf_path)
     paragraphs = split_text_into_paragraphs(all_text)
@@ -109,15 +117,6 @@ def initialize_components(pdf_path):
     )
     question_encoder = DPRQuestionEncoder.from_pretrained(question_model_name)
 
-    return (
-        context_tokenizer,
-        context_encoder,
-        question_tokenizer,
-        question_encoder,
-        index,
-        paragraphs,
-    )
-
 
 def answer_question_from_pdf(
     question,
@@ -139,14 +138,18 @@ def answer_question_from_pdf(
 
 
 def interactive_question_answering(question, pdf_path):
-    (
-        context_tokenizer,
-        context_encoder,
-        question_tokenizer,
-        question_encoder,
-        index,
-        paragraphs,
-    ) = initialize_components(pdf_path)
+    global context_tokenizer, context_encoder, question_tokenizer, question_encoder, index, paragraphs
+
+    if (
+        context_tokenizer is None
+        or context_encoder is None
+        or question_tokenizer is None
+        or question_encoder is None
+        or index is None
+        or paragraphs is None
+    ):
+        initialize_components(pdf_path)
+
     answer = answer_question_from_pdf(
         question,
         context_tokenizer,
