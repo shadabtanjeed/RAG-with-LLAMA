@@ -1,6 +1,6 @@
 # PDF Question Answering with OLLAMA
 
-Python code that allows you to ask questions about your pdf locally with the help of OLLAMA.
+Python application that allows you to ask questions about your pdf locally with the help of OLLAMA.
 
 ## About
 
@@ -12,7 +12,12 @@ This project uses Gradio to create an interactive chat interface that allows use
 - **FAISS**: For efficient similarity search.
 - **OLLAMA**: For generating answers based on the provided context.
 
-## Screenshots
+## Screenshot
+
+![OLLAMA_Chat](https://github.com/user-attachments/assets/d839569b-a7d2-4357-81bc-53a0c95b5183)
+
+## Demo
+https://github.com/user-attachments/assets/c01855ed-3d0e-45dc-962c-0f4fe1470413
 
 ## Prequisites
 * Python 3.11+
