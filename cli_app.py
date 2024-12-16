@@ -8,7 +8,6 @@ from transformers import (
 import numpy as np
 import faiss
 from ollama import chat as ollama_chat
-import gradio as gr
 
 model = "llama3.2"
 messages = []
@@ -29,19 +28,20 @@ def chat(message):
     {message}
 
     Use the context above to answer the given questions. If you do not know any answer, please respond with "I do not know". Do not make up any information.
+    
     """
-
     prompt = prompt.format(message=message)
 
-    response = ollama_chat(
-        model=model, messages=[{"role": "user", "content": prompt}], stream=False
-    )
+    response = ollama_chat(model=model, messages=messages, stream=False)
     complete_message = ""
     for line in response:
-        print("Response line:", line)  # Debugging print statement
+        # Check if the line is a tuple and contains the 'message' key
         if isinstance(line, tuple) and line[0] == "message":
             message_content = line[1].content
             complete_message += message_content
+            # print(message_content, end='', flush=True)
+        # else:
+        #     print("Unexpected line format:", line)
     add_history(complete_message, ASSISTANT)
     return complete_message
 
@@ -70,7 +70,6 @@ def search_relevant_contexts(
         question_encoder(**question_inputs).pooler_output.detach().numpy()
     )
     D, I = index.search(question_embedding, k)
-
     return D, I
 
 
@@ -138,7 +137,7 @@ def answer_question_from_pdf(
     return answer
 
 
-def interactive_question_answering(question, pdf_path):
+def interactive_question_answering(pdf_path):
     (
         context_tokenizer,
         context_encoder,
@@ -147,27 +146,25 @@ def interactive_question_answering(question, pdf_path):
         index,
         paragraphs,
     ) = initialize_components(pdf_path)
-    answer = answer_question_from_pdf(
-        question,
-        context_tokenizer,
-        context_encoder,
-        question_tokenizer,
-        question_encoder,
-        index,
-        paragraphs,
-    )
-    return answer
+    print()
+    print("You can ask questions about the PDF. Type 'quit' or 'exit' to stop.")
+    print()
+    while True:
+        question = input("Enter your question: ")
+        if question.lower() in ["quit", "exit"]:
+            break
+        answer = answer_question_from_pdf(
+            question,
+            context_tokenizer,
+            context_encoder,
+            question_tokenizer,
+            question_encoder,
+            index,
+            paragraphs,
+        )
+        print("Answer:", answer)
+        print()
 
 
 pdf_path = "random_story.pdf"
-
-# Create a Gradio interface
-iface = gr.Interface(
-    fn=lambda question: interactive_question_answering(question, pdf_path),
-    inputs="text",
-    outputs="text",
-    title="PDF Question Answering with OLLAMA",
-    description="Ask questions about the content of the PDF.",
-)
-
-iface.launch()
+interactive_question_answering(pdf_path)
