@@ -1,3 +1,4 @@
+import gradio as gr
 import fitz
 from transformers import (
     DPRContextEncoder,
@@ -9,41 +10,15 @@ import numpy as np
 import faiss
 from ollama import chat as ollama_chat
 
+# Global variables
 model = "llama3.2"
-messages = []
-# Roles
-USER = "user"
-ASSISTANT = "assistant"
-
-
-def add_history(content, role):
-    messages.append({"role": role, "content": content})
-
-
-def chat(message):
-    add_history(message, USER)
-
-    prompt = """
-    Context:
-    {message}
-
-    Use the context above to answer the given questions. If you do not know any answer, please respond with "I do not know". Do not make up any information.
-    
-    """
-    prompt = prompt.format(message=message)
-
-    response = ollama_chat(model=model, messages=messages, stream=False)
-    complete_message = ""
-    for line in response:
-        # Check if the line is a tuple and contains the 'message' key
-        if isinstance(line, tuple) and line[0] == "message":
-            message_content = line[1].content
-            complete_message += message_content
-            # print(message_content, end='', flush=True)
-        # else:
-        #     print("Unexpected line format:", line)
-    add_history(complete_message, ASSISTANT)
-    return complete_message
+context_tokenizer = None
+context_encoder = None
+question_tokenizer = None
+question_encoder = None
+index = None
+paragraphs = None
+uploaded_pdf_path = None
 
 
 def extract_text_from_pdf(pdf_path):
@@ -62,25 +37,9 @@ def split_text_into_paragraphs(all_text):
     return paragraphs
 
 
-def search_relevant_contexts(
-    question, question_tokenizer, question_encoder, index, k=5
-):
-    question_inputs = question_tokenizer(question, return_tensors="pt")
-    question_embedding = (
-        question_encoder(**question_inputs).pooler_output.detach().numpy()
-    )
-    D, I = index.search(question_embedding, k)
-    return D, I
+def initialize_rag_components(pdf_path):
+    global context_tokenizer, context_encoder, question_tokenizer, question_encoder, index, paragraphs
 
-
-def generate_answer_with_ollama(question, relevant_contexts):
-    context_text = " ".join(relevant_contexts)
-    prompt = f"Context: {context_text}\n\nQuestion: {question}\nAnswer:"
-    response = chat(prompt)
-    return response
-
-
-def initialize_components(pdf_path):
     # Extract and split text
     all_text = extract_text_from_pdf(pdf_path)
     paragraphs = split_text_into_paragraphs(all_text)
@@ -89,7 +48,7 @@ def initialize_components(pdf_path):
     model_name = "facebook/dpr-ctx_encoder-single-nq-base"
     context_tokenizer = DPRContextEncoderTokenizer.from_pretrained(model_name)
     context_encoder = DPRContextEncoder.from_pretrained(model_name)
-    d = 768  # Dimension of the embeddings
+    d = 768
     index = faiss.IndexFlatL2(d)
 
     # Encode paragraphs
@@ -108,63 +67,103 @@ def initialize_components(pdf_path):
     )
     question_encoder = DPRQuestionEncoder.from_pretrained(question_model_name)
 
-    return (
-        context_tokenizer,
-        context_encoder,
-        question_tokenizer,
-        question_encoder,
-        index,
-        paragraphs,
-    )
 
-
-def answer_question_from_pdf(
-    question,
-    context_tokenizer,
-    context_encoder,
-    question_tokenizer,
-    question_encoder,
-    index,
-    paragraphs,
+def search_relevant_contexts(
+    question, question_tokenizer, question_encoder, index, k=5
 ):
-
-    D, I = search_relevant_contexts(
-        question, question_tokenizer, question_encoder, index, k=20
+    question_inputs = question_tokenizer(question, return_tensors="pt")
+    question_embedding = (
+        question_encoder(**question_inputs).pooler_output.detach().numpy()
     )
-    relevant_contexts = [paragraphs[i] for i in I[0]]
-
-    answer = generate_answer_with_ollama(question, relevant_contexts)
-    return answer
+    D, I = index.search(question_embedding, k)
+    return D, I
 
 
-def interactive_question_answering(pdf_path):
-    (
-        context_tokenizer,
-        context_encoder,
-        question_tokenizer,
-        question_encoder,
-        index,
-        paragraphs,
-    ) = initialize_components(pdf_path)
-    print()
-    print("You can ask questions about the PDF. Type 'quit' or 'exit' to stop.")
-    print()
-    while True:
-        question = input("Enter your question: ")
-        if question.lower() in ["quit", "exit"]:
-            break
-        answer = answer_question_from_pdf(
-            question,
-            context_tokenizer,
-            context_encoder,
-            question_tokenizer,
-            question_encoder,
-            index,
-            paragraphs,
+def generate_answer_with_ollama(question, relevant_contexts=None):
+    if relevant_contexts:
+        context_text = " ".join(relevant_contexts)
+        prompt = f"Context: {context_text}\n\nQuestion: {question}\nAnswer:"
+    else:
+        prompt = question
+
+    response = ollama_chat(
+        model=model, messages=[{"role": "user", "content": prompt}], stream=False
+    )
+
+    complete_message = ""
+    for line in response:
+        if isinstance(line, tuple) and line[0] == "message":
+            complete_message += line[1].content
+
+    return complete_message
+
+
+def process_query(message, history, pdf_path=None):
+    global context_tokenizer, context_encoder, question_tokenizer, question_encoder, index, paragraphs
+
+    # If PDF is uploaded and RAG components are not initialized
+    if pdf_path and (context_tokenizer is None or index is None):
+        initialize_rag_components(pdf_path)
+
+    # If PDF is uploaded and RAG components are initialized
+    if pdf_path and context_tokenizer and index is not None:
+        D, I = search_relevant_contexts(
+            message, question_tokenizer, question_encoder, index, k=5
         )
-        print("Answer:", answer)
-        print()
+        relevant_contexts = [paragraphs[i] for i in I[0]]
+        response = generate_answer_with_ollama(message, relevant_contexts)
+    else:
+        response = generate_answer_with_ollama(message)
+
+    return response
 
 
-pdf_path = "random_story.pdf"
-interactive_question_answering(pdf_path)
+def chat_interface(message, history, pdf_path):
+
+    if history is None:
+        history = []
+
+    response = process_query(message, history, pdf_path)
+
+    history.append((message, response))
+
+    return history, ""
+
+
+def create_chat_interface():
+    with gr.Blocks() as demo:
+        # PDF File Upload
+        pdf_upload = gr.File(
+            file_types=[".pdf"], label="Upload PDF (Optional)", type="filepath"
+        )
+
+        # Chatbot Component
+        chatbot = gr.Chatbot(height=500, bubble_full_width=False, layout="bubble")
+
+        # Message Input
+        msg = gr.Textbox(
+            label="Ask a question", placeholder="Type your message here..."
+        )
+
+        # Submit Button
+        submit_btn = gr.Button("Send")
+
+        # Interaction Logic
+        pdf_upload.upload(
+            fn=lambda filepath: filepath, inputs=pdf_upload, outputs=pdf_upload
+        )
+
+        msg.submit(
+            fn=chat_interface, inputs=[msg, chatbot, pdf_upload], outputs=[chatbot, msg]
+        )
+
+        submit_btn.click(
+            fn=chat_interface, inputs=[msg, chatbot, pdf_upload], outputs=[chatbot, msg]
+        )
+
+    return demo
+
+
+# Launch the interface
+demo = create_chat_interface()
+demo.launch()
