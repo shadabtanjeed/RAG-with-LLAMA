@@ -164,13 +164,43 @@ def interactive_question_answering(question, pdf_path):
 
 pdf_path = "random_story.pdf"
 
-# Create a Gradio interface
-iface = gr.Interface(
-    fn=lambda question: interactive_question_answering(question, pdf_path),
-    inputs="text",
-    outputs="text",
-    title="PDF Question Answering with OLLAMA",
-    description="Ask questions about the content of the PDF.",
-)
 
-iface.launch()
+def chat_interface(message, history):
+    # If history is None, initialize it
+    if history is None:
+        history = []
+
+    # Generate response using your existing logic
+    response = interactive_question_answering(message, pdf_path)
+
+    # Append the message and response to history
+    history.append((message, response))
+
+    # Return both the updated history and an empty string for the textbox
+    return history, ""
+
+
+# Create Gradio Blocks interface
+def create_chat_interface():
+    with gr.Blocks() as demo:
+        chatbot = gr.Chatbot(
+            height=500,  # Adjust height as needed
+            bubble_full_width=False,  # Makes chat bubbles more modern
+            layout="bubble",  # Gives a more Claude/ChatGPT-like layout
+        )
+        msg = gr.Textbox(
+            label="Ask a question about the PDF",
+            placeholder="Type your question here...",
+        )
+        submit_btn = gr.Button("Send")
+
+        # Define the interaction
+        msg.submit(chat_interface, [msg, chatbot], [chatbot, msg])
+        submit_btn.click(chat_interface, [msg, chatbot], [chatbot, msg])
+
+    return demo
+
+
+# Launch the interface
+demo = create_chat_interface()
+demo.launch()
