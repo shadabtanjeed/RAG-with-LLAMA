@@ -48,7 +48,7 @@ def initialize_rag_components(pdf_path):
     model_name = "facebook/dpr-ctx_encoder-single-nq-base"
     context_tokenizer = DPRContextEncoderTokenizer.from_pretrained(model_name)
     context_encoder = DPRContextEncoder.from_pretrained(model_name)
-    d = 768  # Dimension of the embeddings
+    d = 768
     index = faiss.IndexFlatL2(d)
 
     # Encode paragraphs
@@ -113,24 +113,20 @@ def process_query(message, history, pdf_path=None):
         relevant_contexts = [paragraphs[i] for i in I[0]]
         response = generate_answer_with_ollama(message, relevant_contexts)
     else:
-        # Fallback to standard chat if no PDF or RAG not initialized
         response = generate_answer_with_ollama(message)
 
     return response
 
 
 def chat_interface(message, history, pdf_path):
-    # If history is None, initialize it
+
     if history is None:
         history = []
 
-    # Generate response using the query processing function
     response = process_query(message, history, pdf_path)
 
-    # Append the message and response to history
     history.append((message, response))
 
-    # Return both the updated history and an empty string for the textbox
     return history, ""
 
 
