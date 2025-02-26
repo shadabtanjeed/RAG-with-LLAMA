@@ -1,6 +1,6 @@
 # PDF Question Answering with OLLAMA
 
-Python application that allows you to ask questions about your pdf locally with the help of OLLAMA.
+Python application that allows you to ask questions about your pdf locally with the help of LLAMA 3.2 using OLLAMA.
 
 ## About
 
@@ -10,7 +10,7 @@ This project uses Gradio to create an interactive chat interface that allows use
 - **PyMuPDF**: For extracting text from PDF files.
 - **Transformers**: For tokenizing and encoding text.
 - **FAISS**: For efficient similarity search.
-- **OLLAMA**: For generating answers based on the provided context.
+- **OLLAMA (Lllama 3.2)**: For generating answers based on the provided context.
 
 ## Screenshot
 
@@ -27,7 +27,7 @@ https://github.com/user-attachments/assets/c01855ed-3d0e-45dc-962c-0f4fe1470413
 
 * Clone the project:
   ```bash
-  git clone https://github.com/shadabtanjeed/RAG-with-OLLAMA.git
+  git clone https://github.com/shadabtanjeed/RAG-with-LLAMA.git
   cd "RAG WITH OLLAMA"
   ```
 
